@@ -4,31 +4,53 @@
 #include <iostream>
 #include <fstream>
 #include <mutex>
+#include <stdexcept>
 
 class Logger {
 public:
-    Logger() : fileStream("log.txt") {
-        fileStream.open("log.txt", std::ios::app);
+    Logger(const std::string& filename = "log.txt") {
+        fileStream.open(filename, std::ios::in | std::ios::out | std::ios::app);
+        if (!fileStream.is_open()) {
+            throw std::runtime_error("Unable to open log file: " + filename);
+        }
     }
 
     ~Logger() {
-        fileStream.close();
+        if (fileStream.is_open()) {
+            fileStream.close();
+        }
     }
 
     void log(const std::string& message) {
         std::lock_guard<std::mutex> lock(mutex);
-        fileStream << message << std::endl;
+        if (fileStream.is_open()) {
+            fileStream << message << std::endl;
+            if (fileStream.fail()) {
+                throw std::runtime_error("Failed to write to log file");
+            }
+        } else {
+            throw std::runtime_error("Log file is not open");
+        }
     }
 
     std::string readLine() {
         std::lock_guard<std::mutex> lock(mutex);
-        std::string line;
-        std::getline(fileStream, line);
-        return line;
+        if (fileStream.is_open()) {
+            std::string line;
+            if (std::getline(fileStream, line)) {
+                return line;
+            } else if (fileStream.eof()) {
+                return ""; // End of file reached
+            } else {
+                throw std::runtime_error("Failed to read from log file");
+            }
+        } else {
+            throw std::runtime_error("Log file is not open");
+        }
     }
 
 private:
-    std::ofstream fileStream;
+    std::fstream fileStream;
     std::mutex mutex;
 };
 
